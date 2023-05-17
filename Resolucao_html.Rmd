@@ -1,0 +1,815 @@
+---
+title: "Resolução da lista 1: Ajustando uma RNA 'no braço'"
+output:
+  rmdformats::downcute:
+    code_folding: show
+    df_print: paged
+    self_contained: true
+    thumbnails: true
+    lightbox: true
+    gallery: false
+    highlight: tango
+---
+  
+```{=html}
+<style>
+body {
+text-align: left}
+</style>
+```
+
+```{r steupp, out.width = "400px",echo=FALSE}
+htmltools::img(src = knitr::image_uri("D:/UNB/9_semestre/Redes_neurais/Lista_1/logo-est.png"), 
+               alt = 'logo', 
+               style = 'position:absolute; top:0; right:0; padding:10px;')
+```
+
+
+```{r real_setup, warning=FALSE, error=FALSE, echo =FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE)
+load("D:/UNB/9_semestre/Redes_neurais/Lista_1/BENCH.RData")
+load("D:/UNB/9_semestre/Redes_neurais/Lista_1/BENCHMARK.RData")
+options(scipen = 9999)
+pdf_link <- htmltools::a("Download da lista 1", href = "D:/UNB/9_semestre/Redes_neurais/Lista_1/Lista_1.pdf")
+```
+# **Dados do aluno**
+
+Nome: Leonardo Gomes Duart
+
+Matrícula: 190016183
+
+E-mail: leonardo.duart@hotmail.com
+
+# **Introdução e códigos do professor**
+
+Para acessar a lista completa, basta clicar no botão abaixo descrito como "Download da lista 1":
+```{r real_setup_2, warning=FALSE, error=FALSE, echo =FALSE}
+pdf_link
+```
+
+Para a resolução da lista foram utilizados os pacotes abaixo:
+
+```{r setup, warning=FALSE, error=FALSE}
+pacman::p_load("tidyverse","ggplot2","ggpubr","microbenchmark","plotly")
+```
+
+Abaixo temos o modelo de foco,como disponibilizado pelo professor, que será estimado nessa lista por meio de uma rede neural simples:
+
+```{r cache=T}
+### Gerando dados "observados"
+set.seed(1.2023)
+m.obs <- 100000
+dados <- tibble(x1.obs=runif(m.obs, -3, 3), 
+                x2.obs=runif(m.obs, -3, 3)) %>%
+  mutate(mu=abs(x1.obs^3 - 30*sin(x2.obs) + 10), 
+         y=rnorm(m.obs, mean=mu, sd=1))
+```
+
+# **Letra A**
+
+**a)** Crie uma função computacional para calcular o valor previsto da variável resposta $\hat{y}=f(x; \theta)$ em função de $x$ e $\theta$. Use a função para calcular $\hat{y}$ para $\theta=(0.1, \ldots, 0.1)$ e $x=(1, 1)$. Dica: veja o Algoritmo 6.3 do livro Deep Learning.
+
+```{r a_1, warning=FALSE, error=FALSE}
+# Definindo a função sigmoid
+sigmoid <- function(x) {
+  return(1 / (1 + exp(-x)))
+}
+
+# Definindo a função de predição da variavel resposta
+predicao <- function(x, theta) {
+  # Parâmetros
+  w1 <- theta[1]
+  w2 <- theta[2]
+  w3 <- theta[3]
+  w4 <- theta[4]
+  w5 <- theta[5]
+  w6 <- theta[6]
+  b1 <- theta[7]
+  b2 <- theta[8]
+  b3 <- theta[9]
+  
+  # Cálculo do valor previsto
+  a1 <- x[,1]*w1 + x[,2]*w3 + b1
+  h1 <- sigmoid(a1)
+  a2 <- x[,1]*w2 + x[,2]*w4 + b2
+  h2 <- sigmoid(a2)
+  y_pred <- h1*w5 + h2*w6 + b3
+  
+  return(y_pred)
+}
+# Vetor theta definido pela questão
+theta <- rep(0.1, 9)
+
+# Vetor x definido pela questão
+x <- tibble(x1 = 1, x2 =1)
+y_pred <- predicao(x, theta)
+
+print(y_pred)
+```
+
+Percebe-se que o valor de predição é muito diferente do valor que deveria ser. Nesse caso y deveria seguir a distribuição $Y \sim {\sf N}(\mu = 14.244, \sigma=1)$. Isso acontece porque ainda não ajustamos os vieses nem os pesos.
+
+# **Letra B**
+
+**b)** Crie uma rotina computacional para calcular a função de custo $J(\theta)$. Em seguida, divida o conjunto de dados observados de modo que as **primeiras** 80.000 amostras componham o banco de **treinamento** e as **últimas** 20.000 o de **teste**. Qual é o custo da rede **no banco de teste** quando $\theta=(0.1, \ldots, 0.1)$?
+
+```{r b_1, warning=FALSE, error=FALSE}
+# Definindo a função de custo J
+custo <- function(theta, x1, x2, y) {
+  # Parâmetros
+  w1 <- theta[1]
+  w2 <- theta[2]
+  w3 <- theta[3]
+  w4 <- theta[4]
+  w5 <- theta[5]
+  w6 <- theta[6]
+  b1 <- theta[7]
+  b2 <- theta[8]
+  b3 <- theta[9]
+  
+  # Número de amostras
+  m <- length(y)
+  
+  # Cálculo dos valores previstos
+  h1 <- sigmoid(x1 * w1 + x2 * w3 + b1)
+  h2 <- sigmoid(x1 * w2 + x2 * w4 + b2)
+  y_pred <- h1 * w5 + h2 * w6 + b3
+  
+  # Cálculo do erro quadrático médio
+  J <- 1/m * sum((y - y_pred)^2)
+  
+  return(J)
+}
+
+# Dados de treinamento e teste
+treino <- dados[1:80000,]
+teste <- dados[80001:100000,]
+
+# Vetor theta definido pela questão
+theta <- rep(0.1, 9)
+
+# Cálculo do custo no banco de teste
+J_test <- custo(theta, teste$x1.obs, teste$x2.obs, teste$y)
+paste0("Custo no banco de teste: ", round(J_test,4))
+```
+
+
+# **Letra C**
+
+**c)** Use a regra da cadeia para encontrar expressões algébricas para o vetor gradiente
+$$
+\nabla_\theta J(\theta) = \left(\frac{\partial J}{\partial w_1}, 
+\ldots, \frac{\partial J}{\partial b_3} \right).
+$$
+
+Para encontrar o vetor gradiente, primeiro é necessário calcular as derivadas parciais da função de custo em relação a cada um dos pesos e biases. Para isso, usamos a regra da cadeia.
+
+$$
+J(\theta)  = \frac{1}{m} \sum_{i=1}^m (y_i - \hat{y}_i)^2
+$$
+
+onde $\hat{y_i} = f(x_1^{(i)}, x_2^{(i)}; \theta)$.
+
+
+Substituindo $$\hat{y}_i = \phi(x_1^{(i)}  w_1 + x_2^{(i)} w_3 + b_1) w_5 + \phi(x_1^{(i)}  w_2 + x_2^{(i)} w_4 + b_2) w_6 + b_3.$$ na equação acima temos:
+
+$$ J(\theta)  = \frac{1}{m} \sum_{i=1}^m (y_i - \phi(x_1^{(i)}  w_1 + x_2^{(i)} w_3 + b_1) w_5 - \phi(x_1^{(i)}  w_2 + x_2^{(i)} w_4 + b_2) w_6 - b_3)^2$$
+Usando a regra da cadeia, podemos calcular as derivadas parciais das variáveis de interesse da seguinte forma:
+
+1. $w_1$:
+$$
+\frac{\partial J}{\partial w_1} = \frac{2}{m} \sum_{i=1}^m (y_i - \phi(x_1^{(i)}w_1 + x_2^{(i)}w_3 + b_1)w_5 - \phi(x_1^{(i)}w_2 + x_2^{(i)}w_4 + b_2)w_6 - b_3) \cdot (-\phi'(x_1^{(i)}w_1 + x_2^{(i)}w_3 + b_1)w_5) \cdot x_1^{(i)}
+$$
+$$
+\frac{\partial J}{\partial w_1} =  \frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot (-\phi'(x_1^{(i)}w_1 + x_2^{(i)}w_3 + b_1)w_5) \cdot x_1^{(i)}
+$$
+$$
+\frac{\partial J}{\partial w_1} =  -\frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot \phi'(a_1^{(i)}) \cdot w_5 \cdot x_1^{(i)}
+$$
+
+2. $w_2$:
+$$
+\frac{\partial J}{\partial w_2} = \frac{2}{m} \sum_{i=1}^m (y_i - \phi(x_1^{(i)}w_1 + x_2^{(i)}w_3 + b_1)w_5 - \phi(x_1^{(i)}w_2 + x_2^{(i)}w_4 + b_2)w_6 - b_3) \cdot (-\phi(x_1^{(i)}w_2 + x_2^{(i)}w_4 + b_2)w_6) \cdot x_1^{(i)}
+$$
+$$
+\frac{\partial J}{\partial w_2} =  \frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot (-\phi'(x_1^{(i)}w_2 + x_2^{(i)}w_4 + b_2) \cdot w_6 \cdot x_1^{(i)}
+$$
+$$
+\frac{\partial J}{\partial w_2} =  -\frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot \phi'(a_2^{(i)})  \cdot w_6 \cdot x_1^{(i)}
+$$
+
+3. $w_3$:
+$$
+\frac{\partial J}{\partial w_3} = \frac{2}{m} \sum_{i=1}^m (y_i - \phi(x_1^{(i)}w_1 + x_2^{(i)}w_3 + b_1)w_5 - \phi(x_1^{(i)}w_2 + x_2^{(i)}w_4 + b_2)w_6 - b_3) \cdot (-\phi'(x_1^{(i)}w_1 + x_2^{(i)}w_3 + b_1)w_5) \cdot x_2^{(i)}
+$$
+$$
+\frac{\partial J}{\partial w_3} =  \frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot (-\phi'(x_1^{(i)}w_1 + x_2^{(i)}w_3 + b_1)w_5) \cdot x_2^{(i)}
+$$
+$$
+\frac{\partial J}{\partial w_3} =  -\frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot \phi'(a_1^{(i)}) \cdot w_5 \cdot x_2^{(i)}
+$$
+
+4. $w_4$:
+$$
+\frac{\partial J}{\partial w_4} = \frac{2}{m} \sum_{i=1}^m (y_i - \phi(x_1^{(i)}w_1 + x_2^{(i)}w_3 + b_1)w_5 - \phi(x_1^{(i)}w_2 + x_2^{(i)}w_4 + b_2)w_6 - b_3) \cdot (-\phi'(x_1^{(i)}w_2 + x_2^{(i)}w_4 + b_2)w_6) \cdot x_2^{(i)}
+$$
+$$
+\frac{\partial J}{\partial w_4} =  \frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot (-\phi'(x_1^{(i)}w_2 + x_2^{(i)}w_4 + b_2) \cdot w_6 \cdot x_2^{(i)}
+$$
+$$
+\frac{\partial J}{\partial w_4} =  -\frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot \phi'(a_2^{(i)})  \cdot w_6 \cdot x_2^{(i)}
+$$
+
+5. $w_5$:
+$$
+\frac{\partial J}{\partial w_5} = \frac{2}{m} \sum_{i=1}^m (y_i - \phi(x_1^{(i)}w_1 + x_2^{(i)}w_3 + b_1)w_5 - \phi(x_1^{(i)}w_2 + x_2^{(i)}w_4 + b_2)w_6 - b_3) \cdot (-\phi(x_1^{(i)}w_1 + x_2^{(i)}w_3 + b_1))
+$$
+$$
+\frac{\partial J}{\partial w_5} =  \frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot (-\phi(x_1^{(i)}w_1 + x_2^{(i)}w_3 + b_1))
+$$
+$$
+\frac{\partial J}{\partial w_5} =  -\frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot \phi(a_1^{(i)})
+$$
+$$
+\frac{\partial J}{\partial w_5} =  -\frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot h_1^{(i)}
+$$
+
+6. $w_6$:
+$$
+\frac{\partial J}{\partial w_6} = -\frac{2}{m} \sum_{i=1}^m (y_i - \phi(x_1^{(i)}w_1 + x_2^{(i)}w_3 + b_1)w_5 - \phi(x_1^{(i)}w_2 + x_2^{(i)}w_4 + b_2)w_6 - b_3) \cdot \phi(x_1^{(i)}w_2 + x_2^{(i)}w_4 + b_2)
+$$
+$$
+\frac{\partial J}{\partial w_6} =  -\frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot \phi(x_1^{(i)}w_2 + x_2^{(i)}w_4 + b_2)
+$$
+$$
+\frac{\partial J}{\partial w_6} =  -\frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot \phi(a_2^{(i)})
+$$
+$$
+\frac{\partial J}{\partial w_5} =  -\frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot h_2^{(i)}
+$$
+
+7. $b_1$:
+$$
+\frac{\partial J}{\partial b_1} = -\frac{2}{m} \sum_{i=1}^m (y_i - \phi(x_1^{(i)}  w_1 + x_2^{(i)} w_3 + b_1) w_5 - \phi(x_1^{(i)}  w_2 + x_2^{(i)} w_4 + b_2) w_6 - b_3) \cdot \phi(x_1^{(i)}  w_1 + x_2^{(i)} w_3 + b_1) w_5
+$$
+$$
+\frac{\partial J}{\partial b_1} =  -\frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot \phi'(x_1^{(i)}  w_1 + x_2^{(i)} w_3 + b_1) w_5
+$$
+$$
+\frac{\partial J}{\partial b_1} =  -\frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot \phi'(a_1^{(i)}) \cdot w_5
+$$
+
+8. $b_2$:
+$$
+\frac{\partial J}{\partial b_2} = -\frac{2}{m} \sum_{i=1}^m (y_i - \phi(x_1^{(i)}  w_1 + x_2^{(i)} w_3 + b_1) w_5 - \phi(x_1^{(i)}  w_2 + x_2^{(i)} w_4 + b_2) w_6 - b_3) \cdot \phi'(x_1^{(i)}  w_2 + x_2^{(i)} w_4 + b_2) w_6
+$$
+$$
+\frac{\partial J}{\partial b_2} =  -\frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot \phi'(x_1^{(i)}  w_2 + x_2^{(i)} w_4 + b_2) w_6
+$$
+$$
+\frac{\partial J}{\partial b_2} =  -\frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i) \cdot \phi'(a_2^{(i)}) \cdot w_6
+$$
+
+9. $b_3$:
+$$
+\frac{\partial J}{\partial b_3} = -\frac{2}{m} \sum_{i=1}^m (y_i - \phi(x_1^{(i)}  w_1 + x_2^{(i)} w_3 + b_1) w_5 - \phi(x_1^{(i)}  w_2 + x_2^{(i)} w_4 + b_2) w_6 - b_3)
+$$
+$$
+\frac{\partial J}{\partial b_3} =  -\frac{2}{m} \sum_{i=1}^m (y_i - \hat{y}_i)
+$$
+
+
+Onde $\phi'(x) = \frac{e^{-x}}{(1+e^{-x})^2}$ ou $\phi'(x) = \phi(x) \cdot (1 - \phi(x))$  é a derivada da função de ativação logística, a sigmoide. Note que para calcular cada uma das derivadas parciais é necessário o valor das saídas $h_1^{(i)}$ e $h_2^{(i)}$ da camada escondida, bem como os valores $a_1^{(i)}$ e $a_2^{(i)}$ das entradas da função de ativação logística em cada neurônio da camada escondida.
+
+# **Letra D**
+
+**d)** Crie uma função computacional que receba como entrada o vetor $\theta$, uma matrix design ($x$) e as respectivas observações ($y$) e forneça, como saída, o gradiente definido no item c). Apresente o resultado da função aplicada sobre o **banco de treinamento**, quando $\theta=(0.1, \ldots, 0.1)$. Atenção: implemente o algoritmo *back-propagation* (Algoritmo 6.4 do livro Deep Learning) para evitar realizar a mesma operação múltiplas vezes.
+
+```{r d_1, warning=FALSE, error=FALSE}
+# Definindo a derivada da função de ativação logística
+der_sig <- function(x){sigmoid(x)*(1-sigmoid(x))}
+# Definindo a função de cálculo de gradiente
+gradiente <- function(theta, x, y){
+  m <- nrow(x)
+  
+  # Transformando o vetor de parâmetros em matrizes
+  w5 <- theta[5]
+  w6 <- theta[6]
+  W1 <- matrix(theta[1:4], nrow = 2)
+  W2 <- matrix(theta[5:6], nrow = 2)
+  b1 <- matrix(theta[7:8], nrow = 2)
+  b2 <- theta[9]
+  
+  # Cálculo da matriz intermediária
+  A <- W1 %*% t(x) 
+  A <- t(A) + matrix(b1,ncol = nrow(W1),nrow = ncol(t(x)),byrow = TRUE)
+  
+  # Aplicação da função de ativação
+  H <- sigmoid(A)
+  H_derivado <- der_sig(A)
+  
+  # Cálculo do vetor predito
+  y_pred <- t(W2) %*% t(H) 
+  y_pred <- t(y_pred) + matrix(b2,ncol = ncol(t(y_pred)),
+                               nrow = nrow(t(y_pred)),byrow = TRUE)
+  
+  # Cálculo do erro
+  erro <- y - y_pred
+  
+  # Cálculo do vetor gradiente
+  w_1 <- sum(-2/m*(erro)*H_derivado[,1]*w5*x[,1])
+  w_2 <- sum(-2/m*(erro)*H_derivado[,2]*w6*x[,1])
+  w_3 <- sum(-2/m*(erro)*H_derivado[,1]*w5*x[,2])
+  w_4 <- sum(-2/m*(erro)*H_derivado[,2]*w6*x[,2])
+  dW2 <- -2/m * t(H) %*% erro
+  dB1 <- -2/m * t(erro) %*% H_derivado * t(W2)
+  dB2 <- -2/m * colSums(erro)
+
+  
+  # Transformando as matrizes de gradiente em vetores
+  grad <- c(w_1,w_2,w_3,w_4,dW2, dB1, dB2)
+  
+  return(grad)
+}
+
+# Definicão da matrix de X e vetor de Y
+x_teste <- treino[,1:2] %>% as.matrix()
+y_teste <- treino$y
+
+# Aplicação da função
+grad <- gradiente(theta, x_teste, y_teste)
+grad_ref <- grad[1] # utilizado na questão I
+for(i in 1:9){if(i <= 6){
+print(paste0("Derivada parcial de J em relação à w_",i,": ",round(grad[i],4)))}
+else{
+print(paste0("Derivada parcial de J em relação à b_",i-6,": ",round(grad[i],4)))}}
+```
+
+# **Letra E**
+
+**e)** Aplique o método do gradiente para encontrar os parâmetros que minimizam a função de custo no banco de teste. Inicie o algoritmo no ponto $\theta=(0, \ldots, 0)$, use taxa de aprendizagem $\epsilon=0.1$ e rode o algoritmo por 100 iterações. Reporte o menor custo obtido e indique em qual iteração ele foi observado. Apresente também o vetor de pesos estimado e comente o resultado.
+
+```{r e_1, warning=FALSE, error=FALSE}
+# Definição das condições do enunciado
+tx_aprendizagem <- 0.1
+iteracoes <- 100
+
+# Banco de teste
+X1_teste = teste$x1.obs
+X2_teste = teste$x2.obs
+x_teste = teste[,1:2]
+y_teste = teste$y
+
+# Banco de treino
+X1_treino = treino$x1.obs
+X2_treino = treino$x2.obs
+y_treino = treino$y
+
+# Definição de dados para o loop
+theta <- rep(0, 9)
+custo_historico_teste <- numeric(iteracoes)
+custo_historico_treino <- numeric(iteracoes)
+theta_historico <- data.frame(matrix(NA, nrow = length(theta), ncol = iteracoes))
+
+# Loop de iterações e calculo de custo
+ for (i in 1:iteracoes) {
+  # calcular o gradiente com a funcao criada na questão d
+   gradient <- gradiente(theta, x_teste, y_teste)
+  
+  # atualizar os parâmetros e guardar o histórico do theta
+   theta_historico[1:9,i] <- theta
+   theta <- theta - tx_aprendizagem * gradient
+  
+  # calcular o custo com a funcao criada na questão b
+   teste_custo <- custo(theta,X1_teste,X2_teste, y_teste)
+   treino_custo <- custo(theta,X1_treino,X2_treino, y_treino)
+   
+  # guardar o histórico no treino e teste 
+   custo_historico_treino[i] <- treino_custo
+   custo_historico_teste[i] <- teste_custo
+ }
+
+# Imprimir resultados
+paste0('O minimo do custo no banco de teste ocorreu na iteração ',
+       which.min(custo_historico_teste),
+        ' e foi igual a: ', min(custo_historico_teste))
+
+theta_min <- theta_historico[1:9,which.min(custo_historico_teste)]  %>% as.vector()
+
+for(i in 1:9){
+  if(i == 1){print("Os pesos foram:")}
+  if(i <= 6){
+      print(paste0("w_",i,": ", round(theta[i],4)))}
+  else{
+      print(paste0("b_",i-6,": ", round(theta[i],4)))}}
+theta_J <- theta_min # para utilizar na letra J
+```
+
+# **Letra F**
+
+**f)** Apresente o gráfico do custo no conjunto de treinamento e no de teste (uma linha para cada) em função do número da interação do processo de otimização. Comente os resultados. 
+
+
+```{r f_1, warning=FALSE, error=FALSE}
+# BD para o gráfico
+grafico_f <- data.frame(iteracoes = rep(1:100,2),
+                        historico = c(custo_historico_treino,custo_historico_teste),
+                        banco = c(rep('Treino',100),rep('Teste',100)))
+
+# Criação do gráfico
+graph_f <- ggplot(data = grafico_f ,aes(x=iteracoes,y=historico, colour = banco))+
+  geom_point()+
+  geom_line()+
+  xlab("Número de iterações")+
+  ylab("Custo")+
+  ggtitle("Número de iterações por custo")
+
+ggplotly(graph_f) 
+```
+
+Os resultados mostram o progresso da otimização da função de custo ao longo das iterações, tanto no conjunto de treinamento quanto no conjunto de teste. É possível observar que a função de custo diminui significativamente nas primeiras iterações e posteriormente começa a estabilizar em um mínimo global ou local.
+
+No conjunto de treinamento, a função de custo continua diminuindo até a iteração 11, quando atinge o mínimo de 145.0418, e depois oscila em torno desse valor. Já no conjunto de teste, a função de custo começa a aumentar a partir da iteração 10, o que sugere um possível overfitting do modelo ao conjunto de treinamento.
+
+É importante notar que, apesar de o modelo ter sido otimizado no conjunto de teste, o seu desempenho nesse conjunto não é um indicador confiável do seu desempenho em novos dados, uma vez que o modelo pode ter memorizado as características do conjunto de teste. Portanto, é recomendável que o modelo seja avaliado em um conjunto de validação independente antes de ser utilizado para prever novos dados.
+
+# **Letra G**
+
+**g)** Calcule os valores previstos ($\hat{y}_i$) e os resíduos ($y_i-\hat{y}_i$) da rede no conjunto de teste e represente-os graficamente em função de $x_1$ e $x_2$. Dica: tome como base o código usado para a visualização da superfície $(E(Y|X_1, X_2), X_1, X_2)$. Altere o gradiente de cores e, se necessário, use pontos semi-transparentes. Analise o desempenho da rede nas diferentes regiões do plano. Há locais onde o modelo é claramente viesado ou menos acurado?
+
+```{r g_1, warning=FALSE, error=FALSE}
+# Prever valores para o conjunto de teste
+# Função definida na letra A
+y_teste_pred <- predicao(teste[,1:2], theta)
+
+# Calcular os resíduos
+residuos <- (teste$y - y_teste_pred)
+
+# Criar dataframe para o gráfico
+plot_data <- data.frame(teste[, 1],teste[, 2], 
+                        teste$y,y_teste_pred,
+                        residuos) 
+colnames(plot_data) <- c('x1','x2','y','y_pred','residuos')
+
+# Plotar gráfico de dispersão dos resíduos em função de x1 e x2
+meu_plot <- ggplot(plot_data, aes(x = x1, y = x2)) +
+  geom_point(aes(colour = residuos)) +
+  scale_colour_gradient(low = "blue", high = "red") +
+  labs(x = "x1", y = "x2", colour = "Resíduos") 
+
+meu_plot
+```
+
+Espera-se dos resíduos um comportamento aleatório o maispróximo de 0 possível.
+
+Porém, como pode-se ver acima, os resíduos possuem um certo viés, formando um 'S' em azul (resíduos negativos), possui também uma grande zona de resíduos proximo das laterais extremas.
+
+# **Letra H**
+
+**h)** Faça um gráfico do valor observado ($y_i$) em função do valor esperado ($\hat{y}_i=E(Y_i|x_{1i}, x_{2i})$) para cada observação do conjunto de teste. Interprete o resultado.
+
+```{r h_1, warning=FALSE, error=FALSE}
+# Data frame com as previsões e observações no conjunto de teste
+teste
+pred_obs <- data.frame(y_esp = teste$y, y_obs = y_teste_pred)
+colnames(pred_obs) <- c('y_esp','y_obs')
+
+# Gráfico
+graph_h <- ggplot(pred_obs, aes(x = y_obs, y = y_esp )) + 
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(x = paste0("Valor esperado (ŷ)"), y = "Valor observado (y)") +
+  theme_bw()
+
+graph_h
+```
+
+O gráfico mostra a relação entre o valor observado e o valor esperado para cada observação do conjunto de teste. Cada ponto representa uma observação do conjunto de teste, e a linha vermelha é a reta de regressão ajustada entre os valores observados e esperados.
+
+Idealmente, gostaríamos que os pontos se alinhassem ao longo da reta de regressão, o que indicaria que a previsão está próxima do valor real. No entanto, podemos ver que há uma significante dispersão em torno da reta de regressão, o que indica que há algum erro na previsão.
+
+# **Letra I** 
+
+**i)** Para cada $k=1, \ldots, 300$, recalcule o gradiente obtido no item d) usando apenas as $k$-primeiras observações do banco de dados original. Novamente, use $\theta=(0.1, \ldots, 0.1)$. Apresente um gráfico com o valor do primeiro elemento do gradiente (isso é, a derivada parcial $\frac{\partial J}{\partial w_1}$) em função do número de amostras $k$. Como referência, adicione uma linha horizontal vermelha indicando o valor obtido em d). Em seguida, use a função `microbenchmark` para comparar o tempo de cálculo do gradiente para $k=300$ e $k=100000$. Explique de que maneira os resultados dessa análise podem ser usados para acelerar a execução do item e).  
+
+```{r i_1, warning=FALSE, error=FALSE}
+# Definindo a função de cálculo de gradiente adaptada para K 
+grad_K <- function(k,theta, x, y){
+  m = k
+  if(m == 1){
+    x <- t(x) %>% as.data.frame()}
+  
+  # Transformando o vetor de parâmetros em matrizes
+  w5 <- theta[5]
+  w6 <- theta[6]
+  W1 <- matrix(theta[1:4], nrow = 2)
+  W2 <- matrix(theta[5:6], nrow = 2)
+  b1 <- matrix(theta[7:8], nrow = 2)
+  b2 <- theta[9]
+  
+  # Cálculo da matriz intermediária
+  A <- W1 %*% t(x) 
+  A <- t(A) + matrix(b1,ncol = nrow(W1),nrow = ncol(t(x)),byrow = TRUE)
+  
+  # Aplicação da função de ativação
+  H <- sigmoid(A)
+  H_derivado <- der_sig(A)
+  
+  # Cálculo do vetor predito
+  y_pred <- t(W2) %*% t(H) 
+  y_pred <- t(y_pred) + matrix(b2,ncol = ncol(t(y_pred)),
+                               nrow = nrow(t(y_pred)),byrow = TRUE)
+  
+  # Cálculo do erro
+  erro <- y - y_pred
+  
+  # Cálculo do vetor gradiente
+  w_1 <- sum(-2/m*(erro)*H_derivado[,1]*w5*x[,1])
+  w_2 <- sum(-2/m*(erro)*H_derivado[,2]*w6*x[,1])
+  w_3 <- sum(-2/m*(erro)*H_derivado[,1]*w5*x[,2])
+  w_4 <- sum(-2/m*(erro)*H_derivado[,2]*w6*x[,2])
+  dW2 <- -2/m * t(H) %*% erro
+  dB1 <- -2/m * t(erro) %*% H_derivado * t(W2)
+  dB2 <- -2/m * colSums(erro)
+
+  
+  # Transformando as matrizes de gradiente em vetores
+  grad <- c(w_1)
+  
+  return(grad)
+}
+```
+
+Acima fiz uma pequena adaptação na função de cálculo do gradiente para receber um novo parâmetro, o 'k'.
+
+```{r i_2, warning=FALSE, error=FALSE}
+# Definição do theta inicial e do vetor k de 1 a 300
+theta <- rep(0.1,9)
+k <- 1:300
+
+# Definição do vetor que armazenará o primeiro elemento do gradiente
+primeiro_grad <- numeric(length(k))
+
+# Banco de dados original
+matrix_X_origi <- dados[,1:2] %>% as.matrix()
+vector_y_origi <- dados$y
+
+# Loop para preencher o vetor
+for(i in 1:300) {
+  grad_k <- grad_K(i,theta,matrix_X_origi[1:i,],vector_y_origi[1:i])
+  primeiro_grad[i] <- grad_k[1]
+}
+```
+
+Acima apliquei o vetor theta do enunciado para cada $k = 1,..,300$ k-primeiras observações do banco de dados original.
+
+```{r i_3, warning=FALSE, error=FALSE}
+# plotando o gráfico
+plot(k, primeiro_grad,
+     type = "l",
+     xlab = "k",
+     ylab = 'gradiente de w1',
+     ylim = c(-1, 1))
+abline(h = grad_ref, col = "red")
+```
+
+Acima temos o gráfico com o valor do primeiro elemento do gradiente para cada iteração até 300, e em vermelho uma referência com relação ao valor obitido na letra d). Percebe-se que o valor da derivada parcial de w1 se aproxima do valor calculado em d).
+
+```{r i_4, warning=FALSE, error=FALSE, eval= FALSE}
+# Definição dos vetores para o benchmark
+k_1 = 300
+assign(paste0('grad_',k_1), numeric(k_1))
+
+k_2 = 100000
+assign(paste0('grad_',k_2), numeric(k_2))
+
+# Benchmark
+bench <- microbenchmark(
+  iteracao_300 = {for(i in 1:k_1) {
+    grad_300[i] <-grad_K(i,theta,matrix_X_origi[1:i,],vector_y_origi[1:i])
+  }},
+  iteracao_100000 = { for(i in 1:k_2) {
+    grad_100000[i] <-grad_K(i,theta,matrix_X_origi[1:i,],vector_y_origi[1:i])
+    }},
+  times = 5)
+```
+
+Acima apliquei o vetor theta do enunciado para cada $k = 1,..,300$  e $k = 1,..,100.000$ k-primeiras observações do banco de dados original.
+
+```{r i_5, warning=FALSE, error=FALSE}
+# plotando o gráfico
+plot(1:100000, grad_100000, type = "l",
+     xlab = "k",
+     ylab = 'gradiente de w1',
+     ylim = c(-1, 1))
+abline(h = grad_ref, col = "red")
+```
+
+Acima temos o gráfico com o valor do primeiro elemento do gradiente para cada iteração até $100.000$, e em vermelho uma referência com relação ao valor obitido na letra d). Percebe-se que o valor da derivada parcial de w1 está muito próximo do valor calculado em d), sendo que na iteração $20.000$ já haviamos chegado a um valor considerávelmente próximo.
+
+```{r i_6, warning=FALSE, error=FALSE}
+# plotando o benchmark
+autoplot(bench)
+```
+
+Acima temos também o benchmark de 5 amostras de aplicações para $k$ até $100.000$ e $k$ até $300$. A escala x está logarítmica pela diferença de tempo de processamento ser tão grande.
+
+O resultado mostra que o tempo de cálculo do gradiente para $k = 300$ é da ordem de microssegundos, enquanto o tempo para $k = 100000$ é da ordem de minutos. Isso significa que, para acelerar o cálculo do gradiente no item e), podemos usar um subconjunto aleatório de dados de tamanho $k < 100000$ para aproximar o gradiente, reduzindo assim o tempo de processamento.
+
+# **Letra J**
+
+**j)** Ajuste sobre o conjunto de treinamento um modelo linear normal (**modelo linear 1**)
+$$
+Y_i \sim N(\beta_0 + \beta_1 x_{1i} + \beta_2 x_{2i}, \sigma)
+$$  
+usando a função `lm` do pacote `R` (ou outra equivalente). Em seguida, inclua na lista de covariáveis termos quadráticos e de interação linear. Isso é, assuma que no **modelo linear 2**,
+$$
+E(Y|x_1, x_2) = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \beta_3 x_1^2 + \beta_4 x_2^2 + \beta_5 x_1 x_2.
+$$ 
+Compare o erro quadrático médio no conjunto de teste dos dois modelos lineares acima com o da rede neural ajustada anteriormente. Qual dos 3 modelos você usaria para previsão? Justifique sua resposta.
+
+```{r j_1, warning=FALSE, error=FALSE}
+# Ajuste do modelo linear 1
+lm1 <- lm(y ~ x1.obs + x2.obs, data = treino)
+
+# Inclusão de termos quadráticos e de interação linear
+treino2 <- treino %>% 
+  mutate(x1_q = x1.obs^2,
+         x2_q = x2.obs^2,
+         x1x2 = x1.obs*x2.obs,
+         x1 = x1.obs,
+         x2 = x2.obs)
+
+# Ajuste do modelo linear 2
+lm2 <- lm(y ~ x1 + x2 + x1_q + x2_q + x1x2, data = treino2)
+
+# Cricação da base para comparar os métodos
+teste_j <- teste %>% mutate(x1_q = x1.obs^2,
+                         x2_q = x2.obs^2,
+                         x1x2 = x1.obs*x2.obs)
+colnames(teste_j) <- c('x1','x2','mu','y','x1_q','x2_q','x1x2')
+
+# Previsões dos três modelos
+b0 <- lm1$coefficients[2] # coeficientes de lm1
+b1 <- lm1$coefficients[3]
+b <- lm1$coefficients[1]
+
+a0 <- lm2$coefficients[2] # coeficientes de lm2
+a1 <- lm2$coefficients[3]
+a2 <- lm2$coefficients[4]
+a3 <- lm2$coefficients[5]
+a4 <- lm2$coefficients[6]
+a <- lm2$coefficients[1]
+
+# Aplicação de todos os modelos criando novas colunas
+teste_j <- teste_j %>% 
+  mutate(lm1 = (x1*b0+ x2*b1  + b),
+         lm2 = (x1*a0 + x2*a1 + x1_q*a2 + x2_q*a3 + x1x2*a4 + a),
+         a1 = (x1*theta_J[1]+x2*theta_J[3]+theta_J[7]),
+         a2 = (x1*theta_J[2]+x2*theta_J[4]+theta_J[8]),
+         y_pred = (sigmoid(a1)*theta_J[5] + sigmoid(a2)*theta_J[6]+theta_J[9]))
+
+# Erro quadrático médio dos três modelos
+rn_mse_j <- mean((teste_j$y - teste_j$y_pred)^2)
+lm1_mse_j <- mean((teste_j$y - teste_j$lm1)^2)
+lm2_mse_j <- mean((teste_j$y - teste_j$lm2)^2)
+
+# Comparação dos erros quadráticos médios dos três modelos
+barplot(c(rn_mse_j, lm1_mse_j, lm2_mse_j),
+        names.arg = c("Rede Neural", "Modelo Linear 1", "Modelo Linear 2"),
+        ylab = "Erro Quadrático Médio", col = c("red", "blue", "green"))
+```
+
+Por extenso, temos como MSE:
+
+1. Para a rede neural = `r rn_mse_j`;
+
+2. Para o modelo 1 = `r lm1_mse_j`;
+
+3. Para o modelo 2 = `r lm2_mse_j`.
+
+Os resultados acima indicam que, dentre os modelos avaliados, o modelo linear 2 é o que apresenta o menor erro quadrático médio no conjunto de teste, seguido pelo modelo linear 1 e, por último, a rede neural. Consequentemente, é possível afirmar que o modelo linear 2 é a opção mais indicada para realizar previsões.
+
+No entanto, vale destacar que a escolha do modelo ideal não deve se basear apenas no erro quadrático médio, sendo essencial considerar outros fatores, como interpretabilidade, simplicidade e adequação ao contexto do problema.
+
+# **Letra K**
+
+**k)** Para cada modelo ajustado (os dois lineares e a rede neural), descreva o efeito no valor esperado da variável resposta causado por um aumento de uma unidade da covariável $x_1$?
+
+```{r k_1, warning=FALSE, error=FALSE}
+teste_k <- teste_j %>% 
+  mutate(x1 = x1 + 1,
+         x2 = x2 + 1,
+         lm1 = (x1*b0+ x2*b1  + b),
+         lm2 = (x1*a0 + x2*a1 + x1_q*a2 + x2_q*a3 + x1x2*a4 + a),
+         a1 = (x1*theta_J[1]+x2*theta_J[3]+theta_J[7]),
+         a2 = (x1*theta_J[2]+x2*theta_J[4]+theta_J[8]),
+         y_pred = (sigmoid(a1)*theta_J[5] + sigmoid(a2)*theta_J[6]+theta_J[9]))
+
+# Erro quadrático médio dos três modelos
+rn_mse_k <- mean((teste_k$y - teste_k$y_pred)^2)
+lm1_mse_k <- mean((teste_k$y - teste_k$lm1)^2)
+lm2_mse_k <- mean((teste_k$y - teste_k$lm2)^2)
+
+# Comparação dos erros quadráticos médios dos três modelos
+barplot(c(rn_mse_k, lm1_mse_k, lm2_mse_k),
+        names.arg = c("Rede Neural", "Modelo Linear 1", "Modelo Linear 2"),
+        ylab = "Erro Quadrático Médio", col = c("red", "blue", "green"))
+```
+
+**Para o modelo linear 1:**
+
+1. Para cada unidade adicionada em $x_1$, a variável resposta aumenta em média $\beta_1 = 1.203$ unidades, mantendo-se o valor de $x_2$ constante.
+
+2. Para cada unidade adicionada em $x_2$, a variável resposta diminui em média $\beta_2 = -4.249$ unidades, mantendo-se o valor de $x_1$ constante.
+
+**Para o modelo linear 2:**
+
+1. Para cada unidade adicionada em $x_1$, a variável resposta aumenta em média $\beta_1 + 2\beta_3x_1 + \beta_5x_2 = 1.1913 + 2\times0.7041x_1 - 2.0955x_2$ unidades, considerando-se o valor atual de $x_2$.
+
+2. Para cada unidade adicionada em $x_2$, a variável resposta diminui em média $\beta_2 + 2\beta_4x_2 + \beta_5x_1 = -4.2543 - 0.3051x_1 + 2\times(-2.0955)x_2$ unidades, considerando-se o valor atual de $x_1$.
+
+Nota-se que o efeito da adição de 1 unidade em $x_1$ e em $x_2$ no modelo linear 2 depende dos valores atuais dessas variáveis e dos coeficientes de suas interações. Por outro lado, no modelo linear 1, os efeitos são constantes e não dependem dos valores atuais das variáveis.
+
+**Para o modelo de rede neural:**
+
+Para a rede neural, o efeito de um aumento de uma unidade em $x_1$ depende de toda a estrutura da rede neural, incluindo o número de camadas, o número de neurônios em cada camada, os pesos e os vieses. Portanto, não é possível descrever o efeito de forma simples e geral como nos modelos lineares.
+
+# **Letra L**
+
+**l)** Novamente, para cada um dos 3 modelos em estudo, calcule o percentual de vezes que o intervalo de confiança de 95% (para uma nova observação!) capturou o valor de $y_i$. Considere apenas os dados do conjunto de teste. No caso da rede neural, assuma que, aproximadamente, $\frac{y_i - \hat{y}}{\hat{\sigma}} \sim N(0, 1)$, onde $\hat{\sigma}$ representa a raiz do erro quadrático médio da rede. Comente os resultados. Dica: para os modelos lineares, use a função `predict(mod, interval="prediction")`.
+
+```{r l_1, warning=FALSE, error=FALSE}
+# Bancos de teste para o lm1 e lm2
+teste_L <- teste_j %>% select(x1,x2) %>% rename(x1.obs = x1, x2.obs = x2)
+teste_L2 <- teste_j %>% select(x1,x2,x1_q,x2_q,x1x2)
+
+# Cálculo dos intervalos de confiança dos modelos lineares
+IC_lm1 <- predict(lm1, newdata = teste_L, interval = "prediction") 
+IC_lm2 <- predict(lm2, newdata = teste_L2, interval = "prediction")
+```
+
+Para as redes neurais temos um passo a passo diferente:
+
+1. Calculamos as previsões da rede neural para o conjunto de teste (previamente calculado na letra 'J').
+
+2. Utilizamos o erro quadrático médio da rede neural no conjunto de teste (previamente calculado na letra 'J') para calcularmos o desvio padrão dos resíduos da rede neural.
+
+3. Para cada observação no conjunto de teste, calculamos o intervalo de confiança de 95% para a previsão da rede neural.
+
+```{r l_2, warning=FALSE, error=FALSE}
+# Cálculo do intervalo de confiança para a rede neural
+# Primeiro calcular o desvio padrão
+dp_chapeu <- sqrt(rn_mse_j) 
+
+# Definir o intervalo de confiança
+intervalo <- qnorm(0.975) * dp_chapeu
+IC_rn <- tibble(lwr = teste_j$y_pred - intervalo,
+                upr = teste_j$y_pred + intervalo)
+```
+
+Agora basta realizar a contagem de quantas vezes o $y_i$ esteve presente dentro do intervalo de confiança, depois transformar em porcentagem.
+
+```{r l_3, warning=FALSE, error=FALSE}
+# Verificar se o valor real yi está dentro do intervalo de confiança 
+lm1_ver <- ifelse(teste$y >= IC_lm1[, "lwr"] & teste$y <= IC_lm1[, "upr"], 1, 0)
+lm2_ver <- ifelse(teste$y >= IC_lm2[, "lwr"] & teste$y <= IC_lm2[, "upr"], 1, 0)
+rn_ver <- ifelse(teste$y >= IC_rn$lwr & teste$y <= IC_rn$upr, 1, 0)
+
+# Calcular o percentual de vezes que o valor real yi está dentro do intervalo de
+# confiança correspondente
+pct_lm1 <- sum(lm1_ver) / nrow(teste) * 100
+pct_lm2 <- sum(lm2_ver) / nrow(teste) * 100
+pct_rn <- sum(rn_ver) / nrow(teste) * 100
+
+# Imprimir os resultados
+cat("% de vezes que o intervalo de confiança de 95% capturou o valor de yi:\n",
+    "LM1: ", round(pct_lm1, 2), "%\n",
+    "LM2: ", round(pct_lm2, 2), "%\n",
+    "RN: ", round(pct_rn, 2), "%\n")
+```
+
+Podemos observar que os três modelos apresentam resultados satisfatórios em relação ao percentual de captura do valor verdadeiro de $y_i$, com valores acima de $94\%$. O modelo linear $LM2$ apresentou o melhor desempenho, com uma taxa de sucesso de $96.63\%$, seguido pelo $LM1$ com uma taxa de sucesso de $95.48\%$. Já a rede neural $RN$ apresentou um percentual um pouco menor, com $94.79\%$.
+
+Esses resultados indicam que os intervalos de confiança gerados pelos modelos são relativamente precisos e confiáveis para prever os valores de $y_i$. É importante notar que a precisão do intervalo de confiança é afetada pela quantidade e qualidade dos dados que foram usados para treinar o modelo, além das configurações escolhidas para o modelo. Por isso, é importante avaliar a qualidade dos intervalos de confiança gerados pelos modelos, especialmente em situações onde as previsões são críticas e importantes na tomada de decisões.
+
+# **Letra M**
+
+**m)** Para o **modelo linear 1**, faça um gráfico de disperção entre $x_1$ e $x_2$, onde cada ponto correponde a uma observação do conjunto de teste. Identifique os pontos que estavam contidos nos respectivos intervalos de confianças utiliizando a cor verde. Para os demais pontos, use vermelho. Comente o resultado.
+
+```{r m_1, warning=FALSE, error=FALSE}
+# Criar um vetor que marca quem está dentro do intervalo
+teste_L$Dentro <- (teste_j$y > IC_lm1[, "lwr"]) & (teste_j$y < IC_lm1[, "upr"]) 
+
+# Plotar o gráfico
+ggplot(data = teste_L, aes(x = x1.obs , y = x2.obs)) + 
+  geom_point(colour="white", shape=21, size = 2, aes(fill =factor(Dentro))) + 
+  scale_fill_manual(values=c("red", "green")) +
+  theme(legend.position = "none")
+```
+
+Com base na sua descrição do gráfico, é possível observar que há agrupamentos de pontos vermelhos em regiões específicas do gráfico, enquanto pontos verdes estão mais espalhados. Isso sugere que o Modelo Linear 1 não captura bem a relação entre as variáveis e, portanto, apresenta um desempenho limitado na previsão de valores para novos dados.
+
+Os agrupamentos de pontos vermelhos em regiões específicas indicam que o modelo falha em prever corretamente esses pontos, possivelmente porque essas observações possuem características que não foram bem capturadas pelo modelo linear. Já a presença de pontos verdes fora desses agrupamentos indica que o intervalo de confiança de 95% para o modelo foi capaz de capturar corretamente esses valores.
+
+Em resumo, o gráfico sugere que o Modelo Linear 1 não é muito adequado para a tarefa de prever valores de y a partir de x1 e x2, e que um modelo mais complexo, como a Rede Neural, pode apresentar um desempenho melhor. Claro, não especificamente nossa rede neural utilizada e definida nessa lista, essa se mostra tão ineficaz, com os métodos utilizados, quanto um modelo linear simples.
