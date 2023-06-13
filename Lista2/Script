@@ -290,11 +290,8 @@ y_hat_samples <- matrix(NA, nrow = n_samples, ncol = nrow(x.teste))
 
 # Gerar as previsões para cada observação do conjunto de testes
 for (i in 1:n_samples) {
-  for (j in 1:nrow(x.teste)) {
-    y_hat_samples[i, j] <- forward_prop_drop(
-      theta = theta_est[[which.min(custo_teste)]],
-      x = x.teste[j, ], dropout_rate = 0.6)
-  }
+  y_hat_samples[i, ] <- forward_prop_drop(theta = theta_est[[which.min(custo_teste)]],
+                                          x = x.teste, dropout_rate = 0.6)
 }
 
 # Estimativas pontuais para cada observação
