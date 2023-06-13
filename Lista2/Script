@@ -1,0 +1,562 @@
+---
+title: "Resolução da lista 1: Ajustando uma RNA 'no braço'"
+output:
+  rmdformats::downcute:
+    code_folding: show
+    df_print: paged
+    self_contained: true
+    thumbnails: true
+    lightbox: true
+    gallery: false
+    highlight: tango
+---
+  
+```{=html}
+<style>
+body {
+text-align: left}
+</style>
+```
+
+```{r steupp, out.width = "400px",echo=FALSE}
+# htmltools::img(src = knitr::image_uri("D:/UNB/9_semestre/Redes_neurais/Lista_1/logo-est.png"), 
+#                alt = 'logo', 
+#                style = 'position:absolute; top:0; right:0; padding:10px;')
+```
+
+
+```{r real_setup,  error=FALSE, echo =FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE)
+options(scipen = 9999)
+# pdf_link <- htmltools::a("Download da lista 2", href = "D:/UNB/9_semestre/Redes_neurais/Lista_2/Lista_2.pdf")
+# load("D:/UNB/9_semestre/Redes_neurais/Lista_2/Bench.RData")
+```
+# **Dados do aluno**
+
+Nome: Leonardo Gomes Duart
+
+Matrícula: 190016183
+
+E-mail: leonardo.duart@hotmail.com
+
+# **Introdução e códigos do professor**
+
+Para acessar a lista completa, basta clicar no botão abaixo descrito como "Download da lista 2":
+```{r real_setup_2,  error=FALSE, echo =FALSE}
+pdf_link
+```
+
+
+```{r func_escondida,  error=FALSE, echo =FALSE}
+    sigmoide <- function(x) {
+          return(1/(1+exp(-x)))}
+    
+    forward_prop <- function(theta, x) {
+      ifelse(is.double(x), x <- as.matrix(x), x <- t(as.matrix(x)))
+      W1 <- matrix(data = theta[1:4], nrow = 2)
+      W2 <- matrix(data = theta[5:6], nrow = 2)
+      b1 <- theta[7:8]
+      b2 <- theta[9]
+      a <- matrix(data = rep(b1, ncol(x)), nrow = 2) + W1 %*% x
+      h <- sigmoide(a)
+      y_hat <- as.double(b2 + t(W2) %*% h)
+      return(y_hat)}
+    
+    mse_cost <- function(y_true, y_hat) {
+      return(mean((y_true - y_hat)^2))}
+
+    back_prop <- function(theta, x, y){
+      ifelse(is.double(x), x <- as.matrix(x), x <- t(as.matrix(x)))
+      W1 <- matrix(data = theta[1:4], nrow = 2)
+      W2 <- matrix(data = theta[5:6], nrow = 2)
+      b1 <- theta[7:8]
+      b2 <- theta[9]
+      a <- matrix(data = rep(b1, ncol(x)), nrow = 2) + W1 %*% x
+      h <- sigmoide(a)
+      y_hat <- as.double(b2 + t(W2) %*% h)
+      g <- -2*(y - y_hat)/length(y)
+      grad_b2 <- sum(g)
+      grad_W2 <- g %*% t(h)
+      g <- W2 %*% g
+      g <- g * derivada_sigmoide(a)
+      grad_b1 <- rowSums(g)
+      grad_W1 <- g %*% t(x)
+      g <- W1 %*% g
+      vetor_grad <- c(grad_W1, grad_W2, grad_b1, grad_b2)
+      names(vetor_grad) <- c(paste0("w", 1:6), paste0("b", 1:3))
+      return(vetor_grad)}
+    
+    derivada_sigmoide <- function(x) {
+return(exp(-x)/((1+exp(-x))^2))}
+```
+
+Para a resolução da lista foram utilizados os pacotes abaixo:
+
+```{r setup, error=FALSE}
+pacman::p_load("tidyverse","ggplot2","ggpubr","microbenchmark","plotly","keras")
+
+  # Setup para o keras funcionar
+# install.packages(c('keras','tensorflow'))
+# install.packages('devtools')
+# devtools::install.github('rstudio/keras', dependencies = T)
+# devtools::install.github('rstudio/tensorflow', dependencies = T)
+# install_keras()
+# install_tensorflow()
+```
+
+Abaixo temos o modelo de foco, como disponibilizado pelo professor:
+
+```{r cache=T}
+### Gerando dados "observados"
+set.seed(1.2023)
+m.obs <- 100000
+dados <- tibble(x1.obs=runif(m.obs, -3, 3), 
+                x2.obs=runif(m.obs, -3, 3)) %>%
+  mutate(mu=abs(x1.obs^3 - 30*sin(x2.obs) + 10), 
+         y=rnorm(m.obs, mean=mu, sd=1))
+
+  # Treino
+treino <- dados[1:80000,]
+x.treino <- treino %>%
+select(x1.obs, x2.obs)
+y.treino <- treino$y
+
+  # Teste
+teste <- dados[80001:100000,]
+x.teste <- teste %>%
+select(x1.obs, x2.obs)
+y.teste <- teste$y
+```
+
+# **Questão 1**
+
+## **Letra A**
+
+**a)** Altere seu código da Lista 1 (ou, se preferir, os códigos disponibilizados como gabarito) para implementar a técnica dropout na camada de entrada e na camada intermediária. Use $p = 0,6$, onde p representa a probabilidade de inclusão de cada neurônio. Reporte o custo dessa rede.
+
+Vou utilizar o código do gabarito para mais organização.
+
+```{r 1a,  error=FALSE, cache=TRUE, warning=FALSE}
+  # Vou mudar a função foward prop para adaptar ao dropout
+forward_prop_drop <- function(theta, x, dropout_rate) {
+  ifelse(is.double(x), x <- as.matrix(x), x <- t(as.matrix(x)))
+  
+    # Dropout na camada de entrada
+  x <- sweep(x, 2, rbinom(n = length(x), size = 1, prob = dropout_rate), "*")
+  
+  W1 <- matrix(data = theta[1:4], nrow = 2)
+  W2 <- matrix(data = theta[5:6], nrow = 2)
+  b1 <- theta[7:8]
+  b2 <- theta[9]
+  
+    # Calculo na camada oculta
+  a <- matrix(data = rep(b1, ncol(x)), nrow = 2) + W1 %*% x
+  
+  h <- sigmoide(a)
+  
+    # Dropout na camada intermediária
+  h <- sweep(h, 2, rbinom(n = length(h), size = 1, prob = dropout_rate), "*")
+  
+  y_hat <- as.double(b2 + t(W2) %*% h)
+  
+  return(y_hat)
+}
+
+  # Vou mudar a função back prop para adaptar ao dropout
+back_prop_drop <- function(theta, x, y, dropout_rate) {
+  
+    # Primeiro, deve-se realizar o forward propagation
+  ifelse(is.double(x), x <- as.matrix(x), x <- t(as.matrix(x)))
+  W1 <- matrix(data = theta[1:4], nrow = 2)
+  W2 <- matrix(data = theta[5:6], nrow = 2)
+  b1 <- theta[7:8]
+  b2 <- theta[9]
+  
+    # Camada de entrada com dropout
+  x <- sweep(x, 2, rbinom(n = length(x), size = 1, prob = dropout_rate), "*")
+  
+    # Calculo na camada oculta
+  a <- matrix(data = rep(b1, ncol(x)), nrow = 2) + W1 %*% x
+
+  h <- sigmoide(a)
+    
+    # Camada escondida com dropout
+  h <- sweep(h, 2, rbinom(n = length(h), size = 1, prob = dropout_rate), "*")
+  
+  y_hat <- as.double(b2 + t(W2) %*% h)
+  
+  g <- -2*(y - y_hat)/length(y)
+  grad_b2 <- sum(g)
+  grad_W2 <- g %*% t(h)
+  g <- W2 %*% g
+  g <- g * derivada_sigmoide(a)
+  grad_b1 <- rowSums(g)
+  grad_W1 <- g %*% t(x)
+  g <- W1 %*% g
+  
+    # Criamos um vetor com os gradientes de cada parâmetro
+  vetor_grad <- c(grad_W1, grad_W2, grad_b1, grad_b2)
+  names(vetor_grad) <- c(paste0("w", 1:6), paste0("b", 1:3))
+  return(vetor_grad)
+}
+
+  # Epsilon, iterações, theta da lista anterior letra e, p_dropout 0.6
+theta_est <- list()
+theta_est[[1]] <- rep(0, 9)
+p_dropout = 0.6
+epsilon <- 0.1
+M <- 100
+
+  # Vetores para receber os custos
+custo_treino <- custo_teste <- numeric(M)  
+  
+  # Execução
+for(i in 1:M) {
+    # Cálculo dos gradientes dos parâmetros
+  grad <- back_prop_drop(theta_est[[i]],
+                    x.treino,y.treino,
+                    p_dropout)
+    # Cálculo do custo de treino
+  custo_treino[i] <- mse_cost(y.treino, forward_prop_drop(theta_est[[i]], 
+                                                     x.treino,
+                                                     p_dropout))
+    # Cálculo do custo de teste
+  custo_teste[i] <- mse_cost(y.teste, forward_prop_drop(theta_est[[i]], 
+                                                     x.treino,
+                                                     p_dropout))
+    # Atualização dos parâmetros
+  theta_est[[i+1]] <- theta_est[[i]] - epsilon*grad
+  }
+
+  # Menor custo banco de treino
+min_custo_treino <- min(custo_treino)
+round(min_custo_treino, 3)
+which.min(custo_treino)
+
+  # Menor custo banco de teste
+min_custo_teste <- min(custo_teste)
+round(min_custo_teste, 3)
+which.min(custo_teste)
+
+  # Vetor de pesos que minimizou o banco de teste
+min_theta <- unlist(theta_est[which.min(custo_teste)])
+round(min_theta, 3)
+```
+
+**b)** Considerando os pesos obtidos em a), para a primeira observação do conjunto de teste, gere 200 previsões ($y_{1,1}$,..., $y_{1,200}$), uma para cada sub-rede amostrada aleatoriamente. Use as previsões para construir uma estimativa pontual e um intervalo de confiança para y1. Veja a Figura 7.6 do livro Deep Learning. Note que com esse procedimento, não é preciso assumir normalidade para os erros, como
+fizemos na Lista 1.
+
+```{r 1b,  error=FALSE, cache=TRUE,warning=FALSE}
+  # Semente
+set.seed(123)  
+
+  # Número de sub-redes amostradas
+n_samples <- 200  
+
+  # Vetor para armazenar as previsões
+y_hat_sample <- numeric(n_samples)  
+
+  # Gerar as previsões para as sub-redes amostradas
+for (i in 1:n_samples) {
+  y_hat_sample[i] <- forward_prop_drop(theta = theta_est[[which.min(custo_teste)]],
+                                           x = x.teste[1, ], dropout_rate = 0.6)
+}
+
+  # Estimativa pontual
+y_hat_mean <- mean(y_hat_sample)
+
+  # Intervalo de confiança
+alpha <- 0.05  # Nível de confiança (95% de confiança)
+
+lower <- quantile(y_hat_sample, alpha/2)
+upper <- quantile(y_hat_sample, 1 - alpha/2)
+
+  # Imprimir estimativa pontual e intervalo de confiança
+cat("Estimativa pontual:", y_hat_mean, "\n",
+    "Intervalo de confiança (", (1-alpha)*100, "%): [", lower, ", ", upper, "]", "\n")
+```
+
+**c)** Repita o item b) para gerar estimativas pontuais para cada observação do conjunto de testes.
+
+```{r 1c,  error=FALSE, cache=TRUE, warning=FALSE}
+  # Semente
+set.seed(123)  
+
+  # Número de sub-redes amostradas
+n_samples <- 200  
+
+  # Matriz para armazenar as previsões
+y_hat_samples <- matrix(NA, nrow = n_samples, ncol = nrow(x.teste))
+
+# Gerar as previsões para cada observação do conjunto de testes
+for (i in 1:n_samples) {
+  for (j in 1:nrow(x.teste)) {
+    y_hat_samples[i, j] <- forward_prop_drop(
+      theta = theta_est[[which.min(custo_teste)]],
+      x = x.teste[j, ], dropout_rate = 0.6)
+  }
+}
+
+# Estimativas pontuais para cada observação
+y_hat_mean <- colMeans(y_hat_samples)
+
+# Imprimir estimativas pontuais para cada observação
+cat("Estimativas pontuais para cada observação:\n")
+print(y_hat_mean)
+```
+
+**d)** Use a regra weight scaling inference rule (página 263 do livro Deep Learning) para gerar novas estimativas para as observações do conjunto de testes. Qual dos procedimentos (o do item c) ou o utilizado neste item) produziu melhores resultados? Considerando o tempo computacional de cada um, qual você escolheria nessa aplicação?
+
+```{r 1d,  error=FALSE, cache=TRUE}
+
+```
+
+# **Questão 2**
+
+## **Letra A**
+
+**a)** Ajuste a rede neural especificada na Lista 1 usando o *Keras*. Compare com sua implementação (Lista 1, item e) quanto ao tempo computacional e ao custo obtido no conjunto de teste. Use o mesmo algoritmo de otimização (*full gradient descent*) e ponto de partida.
+
+```{r 2a,  error=FALSE, cache=TRUE}
+  # ponto de partida
+theta <- rep(0,9)
+
+  # Criando o modelo
+mod <- keras_model_sequential()
+
+  # Criando camadas do modelo
+mod %>% 
+  layer_dense(input_shape=2, # entra x1 e x2
+              units=2, # sai h1 e h2
+              activation = 'sigmoid') %>% 
+  layer_dense(input_shape=2, # entra h1 e h2
+              units=1) # sai yi
+
+  # Ajustando os pesos com base no vetor theta
+# Deve-se definir os bias como array para o keras aceitar
+weights_layer1 <- list(matrix(theta[1:4], ncol = 2), # w1,w2,w3,w4
+                       array(matrix(theta[5:6], ncol = 2))) # b1,b2
+
+weights_layer2 <- list(matrix(theta[7:8], ncol = 1), # w5,w6
+                       array(theta[9])) # b3
+# Definindo de fato
+mod$layers[[1]]$set_weights(weights_layer1)
+mod$layers[[2]]$set_weights(weights_layer2)
+
+  # Tx de aprendizagem 0.1 e funcao de perda mse
+tx_aprendizagem = 0.1
+
+mod %>% 
+  compile(optimizer=optimizer_sgd( # sgd =  gradiente descendente estocastico
+    learning_rate = tx_aprendizagem),
+          loss="mse")
+
+  # Modelo na pratica com o callback para salvar o ponto otimizado
+mod %>% 
+  fit(x=matrix(c(x1.treino, x2.treino), nc=2),
+      y=y.treino,
+      validation_data=list(matrix(c(x1.teste, x2.teste), nc=2),
+                           y.teste),
+      callbacks=callback_early_stopping(
+        monitor = "val_loss",
+        patience = 10, 
+        restore_best_weights = T),
+      batch_size=length(treino$y),
+      epochs=500)
+  
+  # Pesos obtidos
+mod$weights
+```
+
+Os pesos acima batem com os da lista anterior, calculado manualmente.
+
+```{r 2apt2.1,  error=FALSE, cache=TRUE, eval= FALSE}
+mod %>% 
+  evaluate(x = matrix(c(x1.teste, x2.teste), nc = 2), y = y.teste)
+```
+
+Acima temos o custo obtido no conjunto de teste. Também é igual ao da lista 1 questão e).
+
+Agora fazer um cálculo de eficiência com o pacote *microbenchmark* para comparamos: **com o early stopping**, **sem o early stopping** e **manualmente como na lista 1 letra e)**, com 100 *epochs* (quantidade de iterações na lista 1). Vale ressaltar que a placa de vídeo utilizada é da Nvidia, modelo RTX 2060.
+
+```{r 2apt2,  error=FALSE, cache=TRUE, eval= FALSE}
+microbenchmark::microbenchmark(
+  
+  #metodo lista1
+  manual = {
+    corte <- 80000
+    treino <- dados[1:corte,]
+    teste <- dados[(corte+1):nrow(dados),]
+    x_treino <- treino %>%
+    select(x1.obs, x2.obs)
+    x_teste <- teste %>%
+    select(x1.obs, x2.obs)
+    y_treino <- treino$y
+    y_teste <- teste$y
+    theta_est <- list()
+    theta_est[[1]] <- rep(0, 9)
+    epsilon <- 0.1
+    M <- 100
+    custo_treino <- custo_teste <- numeric(M)
+
+    for(i in 1:M) {
+    grad <- back_prop(theta = theta_est[[i]], x = x_treino, y = y_treino)
+    custo_treino[i] <- mse_cost(y_treino, forward_prop(theta_est[[i]], x_treino))
+    custo_teste[i] <- mse_cost(y_teste, forward_prop(theta_est[[i]], x_teste))
+    theta_est[[i+1]] <- theta_est[[i]] - epsilon*grad
+}
+  },
+  
+  #metodo lista sem early stopping
+  keras_no_callback = {  
+    theta <- rep(0,9)
+
+    mod_bench <- keras_model_sequential()
+
+    mod_bench %>% 
+      layer_dense(input_shape=2,units=2,activation = 'sigmoid') %>% 
+      layer_dense(input_shape=2,units=1) 
+
+    weights_layer1 <- list(matrix(theta[1:4], ncol = 2), 
+                       array(matrix(theta[5:6], ncol = 2)))
+
+    weights_layer2 <- list(matrix(theta[7:8], ncol = 1),
+                       array(theta[9]))
+
+    mod_bench$layers[[1]]$set_weights(weights_layer1)
+    mod_bench$layers[[2]]$set_weights(weights_layer2)
+
+    tx_aprendizagem = 0.1
+
+    mod_bench %>% 
+      compile(optimizer=optimizer_sgd(learning_rate = tx_aprendizagem),loss="mse") %>% 
+      fit(x=matrix(c(x1.treino, x2.treino), nc=2), y=y.treino,
+          validation_data=list(matrix(c(x1.teste, x2.teste), nc=2),
+                           y.teste),
+          batch_size=length(treino$y),
+          epochs=100)
+},
+
+  #metodo lista com early stopping
+  keras_callback = {  
+    theta <- rep(0,9)
+
+    mod_bench <- keras_model_sequential()
+
+    mod_bench %>% 
+      layer_dense(input_shape=2,units=2,activation = 'sigmoid') %>% 
+      layer_dense(input_shape=2,units=1) 
+
+    weights_layer1 <- list(matrix(theta[1:4], ncol = 2), 
+                       array(matrix(theta[5:6], ncol = 2)))
+
+    weights_layer2 <- list(matrix(theta[7:8], ncol = 1),
+                       array(theta[9]))
+
+    mod_bench$layers[[1]]$set_weights(weights_layer1)
+    mod_bench$layers[[2]]$set_weights(weights_layer2)
+
+    tx_aprendizagem = 0.1
+
+    mod_bench %>% 
+     compile(optimizer=optimizer_sgd(learning_rate = tx_aprendizagem),loss="mse") %>% 
+      fit(x=matrix(c(x1.treino, x2.treino), nc=2), y=y.treino,
+          validation_data=list(matrix(c(x1.teste, x2.teste), nc=2),
+                           y.teste),
+         callbacks=callback_early_stopping(
+            monitor = "val_loss",
+            patience = 10, 
+            restore_best_weights = T),
+         batch_size=length(treino$y),
+         epochs=100)
+},
+
+times = 50) -> bench
+```
+
+Abaixo temos então o resultado do benchmark em tabela e gráfico. Pode-se notar que o tempo do modo manual com o keras com callback são parecidos. Porém sem o callback há uma considerável diferença nesse contexto.
+
+```{r 2apt3, error=FALSE,cache=TRUE}
+bench %>% summary()
+
+autoplot(bench)
+```
+
+## **Letra B**
+
+**b)** Ajuste a rede neural mais precisa (medida pelo MSE calculado sobre o conjunto de validação) que conseguir, com a arquitetura que quiser. Use todos os artifícios de regularização que desejar (*weight decay*, *Bagging*, *droupout*, *Early stopping*). Reporte a precisão obtida.
+
+```{r 2.bpt1, error=FALSE,cache=TRUE}
+# Criando o modelo
+keras_model_sequential() %>%
+   layer_dense(units = 1024,
+               activation = 'relu',
+               input_shape = 2) %>%
+   layer_dense(units = 512,
+               activation = 'relu',
+               input_shape = 2) %>%
+   layer_dense(units = 256,
+               activation = 'relu') %>%
+   layer_dense(units = 128,
+               activation = 'relu') %>%
+   layer_dense(units = 64,
+               activation = 'relu') %>%
+   layer_dense(units = 32,
+               activation = 'relu') %>%
+   layer_dense(units = 16,
+               activation = 'relu') %>%
+   layer_dense(units = 8,
+               activation = 'relu') %>%
+   layer_dense(units = 1)-> mod_b
+
+# Taxa de aprendizagem e função de perda
+tx_aprendizagem <- 0.0005
+
+mod_b %>% 
+  compile(optimizer = optimizer_sgd(learning_rate = tx_aprendizagem),
+          loss = "mse")
+
+ # Modelo na pratica com o callback para salvar o ponto otimizado
+mod_b %>% 
+  fit(x=matrix(c(x1.treino, x2.treino), nc=2),
+      y=y.treino,
+      validation_data=list(matrix(c(x1.teste, x2.teste), nc=2),
+                           y.teste),
+      callbacks=callback_early_stopping(
+        monitor = "val_loss",
+        patience = 15, 
+        restore_best_weights = T),
+      batch_size=150,
+      epochs=500)
+  
+  # Pesos obtidos
+mod_b$weights
+
+remove(mod_b)
+```
+
+**Considerando a rede ajustada no item b), responda os itens a seguir.**
+
+**c)** Refaça o item h) da Lista 1 para essa nova rede. Comente os resultados.
+
+```{r 2.c, error=FALSE,cache=TRUE}
+
+```
+
+**d)** Use a função de previsão do Keras para prever o valor da variável resposta $\hat{y} = f(x_1 = 1, x_2 = 1; \theta)$, para $\theta$ definido de acordo com a rede ajustada. (Veja o item a) da Lista 1).
+
+```{r 2.d, error=FALSE,cache=TRUE}
+
+```
+
+**e)** Neste exemplo meramente didático, conhecemos a superfície que estamos estimando. Apresente, lado a lado, a Figura 1 da Lista 1 e a superfície estimada pela sua rede neural. Para tanto, basta trocar a variável mu pelos valores preditos pela rede. Comente os resultados.
+
+```{r 2.e, error=FALSE,cache=TRUE}
+
+```
+
+**f)** Construa uma nova rede, agora ajustada sobre os valores previstos (ao invés dos valores observados de y) para cada observação dos conjuntos de treinamento e validação. Use a arquitetura mais parcimoniosa que conseguir, sem comprometer substancialmente o poder de previsão da rede (quando comparada à obtida no item 2b). Cite um possível uso para essa nova rede.
+
+```{r 2.f, error=FALSE,cache=TRUE}
+
+```
