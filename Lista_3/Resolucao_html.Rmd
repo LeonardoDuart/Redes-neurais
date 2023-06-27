@@ -1,0 +1,286 @@
+---
+title: "Resolução da lista 3: Otimização em RNA"
+output:
+  rmdformats::downcute:
+    code_folding: show
+    df_print: paged
+    self_contained: true
+    thumbnails: true
+    lightbox: true
+    gallery: false
+    highlight: tango
+---
+  
+```{=html}
+<style>
+body {
+text-align: left}
+</style>
+```
+
+```{r steupp, out.width = "400px",echo=FALSE}
+# htmltools::img(src = knitr::image_uri("D:/UNB/9_semestre/Redes_neurais/Lista_1/logo-est.png"), 
+#                alt = 'logo', 
+#                style = 'position:absolute; top:0; right:0; padding:10px;')
+```
+
+
+```{r real_setup,  error=FALSE, echo =FALSE}
+# knitr::opts_chunk$set(message=FALSE, warning=FALSE)
+# options(scipen = 9999)
+# 
+# pdf_link <- htmltools::a("Download da lista 3", href = "D:/UNB/9_semestre/Redes_neurais/Lista_3/Lista_3.pdf")
+
+  # Para salvar
+# save_model_tf(mod, "D:/UNB/9_semestre/Redes_neurais/Lista_2/modelos/mod")
+# save_model_tf(mod_b, "D:/UNB/9_semestre/Redes_neurais/Lista_2/modelos/mod_b")
+# save_model_tf(mod_f, "D:/UNB/9_semestre/Redes_neurais/Lista_2/modelos/mod_f")
+
+  # Para importar
+# mod <- keras::load_model_tf('D:/UNB/9_semestre/Redes_neurais/Lista_2/modelos/mod')
+# mod_b <- keras::load_model_tf('D:/UNB/9_semestre/Redes_neurais/Lista_2/modelos/mod_b')
+# mod_f <- keras::load_model_tf('D:/UNB/9_semestre/Redes_neurais/Lista_2/modelos/mod_f')
+```
+# **Dados do aluno**
+
+Nome: Leonardo Gomes Duart
+
+Matrícula: 190016183
+
+E-mail: leonardo.duart@hotmail.com
+
+# **Introdução e códigos do professor**
+
+Para acessar a lista completa, basta clicar no botão abaixo descrito como "Download da lista 3":
+```{r real_setup_2,  error=FALSE, echo =FALSE}
+# pdf_link
+```
+
+Para a resolução da lista foram utilizados os pacotes abaixo:
+
+```{r setup, error=FALSE}
+pacman::p_load("tidyverse","ggplot2","ggpubr","microbenchmark","plotly","keras",
+               "tensorflow")
+```
+
+Abaixo temos o modelo de foco, como disponibilizado pelo professor:
+
+$f(x_1,x_2) =x^4_1+x^4_2+x^2_1.x_2+x_1.x^2_2-20.x^2_1-15.x^2_2$
+
+# **Letra A**
+
+**a)** Apresente um gráfico com as curvas de nível de $f(x_1,x_2)$. Quantos pontos críticos a função parece ter? Dica para usuários do $R$: use a função geom_contour_filled().
+
+```{r 1a,  error=FALSE, cache=TRUE, warning=FALSE}
+  # Gerar valores para calcular a função
+n <- 1000
+x1 <- seq(-7, 7, length.out=n)
+x2 <- seq(-7, 7, length.out=n)
+dados.superficie <- as_tibble(expand.grid(x1, x2)) %>%
+  rename_all(~ c("x1", "x2")) %>%
+  mutate(z=x1^4+x2^4+x1^2*x2+x1*x2^2-20*x1^2-15*x2^2)
+
+  # Plotar a superfície do resultado
+dados.superficie %>%
+ggplot(., aes(x1, x2, z = z)) +
+  geom_contour_filled(breaks = seq(-250, 170, by = 35)) +
+  geom_contour(color = "black", size = 0.1) + 
+  scale_fill_brewer(palette = "YlOrRd")
+```
+
+Fiz alguns plots para encontrar os limites que demonstram melhor os pontos críticos, gráficos relativamente maiores que esse apenas divergem o valor da função $f(x_1,x_2)$ e não destacam os valores de interesse. 
+
+Nota-se que há **4** mínimos locais (pontos críticos), sendo um deles um mínimo global.
+
+# **Letra B**
+
+**b)** Encontre (algericamente) o gradiente de $f$ em relação ao vetor $x= (x_1,x_2)$. Isso é,
+
+$\nabla x f(x) = \left(\frac{\partial f}{\partial x_1}, \frac{\partial f}{\partial x_2}\right)$
+
+Calculando as derivadas parciais chegamos em:
+
+$\frac{{\partial f}}{{\partial x_1}} = 4x_1^3 + x_2^2 + 2x_1.x_2 - 40x_1$
+
+$\frac{{\partial f}}{{\partial x_2}} = 4x_2^3 + x_1^2 + 2x_1.x_2 - 30x_2$
+
+$\nabla f(x) = \left(\frac{{\partial f}}{{\partial x_1}}, \frac{{\partial f}}{{\partial x_2}}\right) = \left(4x_1^3 + x_2^2 + 2x_1.x_2 - 40x_1, 4x_2^3 + x_1^2 + 2x_1.x_2 - 30x_2\right)$
+
+# **Letra C**
+
+**c)** Crie uma função computacional que implemente o método do gradiente para minimizar a função em estudo. Permita ao usuário definir a taxa de aprendizado, o número de passos e o ponto de partida.
+
+```{r 1c,  error=FALSE, cache=TRUE, warning=FALSE}
+funcao <- function(x) x[1]^4+x[2]^4+x[1]^2*x[2]+x[1]*x[2]^2-20*x[1]^2-15*x[2]^2
+
+gradiente <- function(learning_rate, num_passos, ponto_inicial) {
+    # Definir função objetivo
+  f <- function(x) {
+    x1 <- x[1]
+    x2 <- x[2]
+    return(x1^4 + x2^4 + x1^2 * x2 + x1 * x2^2 - 20 * x1^2 - 15 * x2^2)
+  }
+  
+    # Definir vetor gradiente
+  grad_f <- function(x) {
+    x1 <- x[1]
+    x2 <- x[2]
+    return(c(4 * x1^3 + x2^2 + 2 * x1 * x2 - 40 * x1, 4 * x2^3 + x1^2 + 2 * x1 * x2 - 30 * x2))
+  }
+  
+    # Inicializar ponto atual
+  ponto_atual <- ponto_inicial
+  
+    # Loop do gradiente descendente
+  for (i in 1:num_passos) {
+      # Calcular o vetor gradiente no ponto atual
+    grad <- grad_f(ponto_atual)
+    
+      # Atualizar o ponto atual usando o gradiente e a taxa de aprendizado
+    ponto_atual <- ponto_atual - learning_rate * grad
+  }
+  
+  return(ponto_atual)
+}
+
+  # Valores de taxa de aprendizado e numero de passos arbitrários
+taxa_aprendizado <- 0.01
+num_passos <- 100
+
+cat(" Mínimo local 1 = ",gradiente(taxa_aprendizado, num_passos, c(3, 3)),"\n",
+    "  Valor = ",funcao(gradiente(taxa_aprendizado, num_passos, c(3, 3))),"\n",
+    
+    "Mínimo local 2 = ",gradiente(taxa_aprendizado, num_passos, c(3, -3)),"\n",
+    "  Valor = ",funcao(gradiente(taxa_aprendizado, num_passos, c(3, -3))),"\n",
+    
+    "Mínimo local 3 = ",gradiente(taxa_aprendizado, num_passos, c(-3, 3)),"\n",
+    "  Valor = ",funcao(gradiente(taxa_aprendizado, num_passos, c(-3, 3))),"\n",
+    
+    "Mínimo global = ",gradiente(taxa_aprendizado, num_passos, c(-3, -3)),"\n",
+    "  Valor = ",funcao(gradiente(taxa_aprendizado, num_passos, c(-3, -3))))
+```
+
+# **Letra D**
+
+**d)** Use a função criada no item c) para encontrar o valor obtido pelo método do gradiente partindo-se do ponto inicial $(x^{(0)}_1,x^{(0)}_2) = (0,5)$. Use taxa de aprendizado igual a $0.01$ e execute $100$ passos.
+
+Basta calcular então:
+
+```{r 1d,  error=FALSE, cache=TRUE}
+cat(" Ponto de gradiente = ",gradiente(0.01, 100, c(0, 5)),"\n",
+    "  Valor = ",funcao(gradiente(0.01, 100, c(0, 5))))
+```
+
+Ou seja, como o ponto inicial não foi bom, o gradiente foi levado ao ponto de mínimo que chamei de "Mínimo Local 3" na questão anterior.
+
+# **Letra E**
+
+**e)** Repita o item d), agora com as seguintes taxas de aprendizado: 1, 0.1, 0.01, 0.001, 0.0001. Qual dessas opções lhe parece mais apropriada nesse caso? Justifique sua resposta.
+
+```{r 1e,  error=FALSE, cache=TRUE, eval=FALSE}
+cat(" Ponto de gradiente com taxa de aprendizado 1 = ",gradiente(1, 100, c(0, 5)),"\n",
+    "  Valor = ",funcao(gradiente(1, 100, c(0, 5))),"\n",
+    
+    "Ponto de gradiente com taxa de aprendizado 0.1 = ",gradiente(0.1, 100, c(0, 5)),"\n",
+    "  Valor = ",funcao(gradiente(0.1, 100, c(0, 5))),"\n",
+    
+    "Ponto de gradiente com taxa de aprendizado 0.01 = ",gradiente(0.01, 100, c(0, 5)),"\n",
+    "  Valor = ",funcao(gradiente(0.01, 100, c(0, 5))),"\n",
+    
+    "Ponto de gradiente com taxa de aprendizado 0.001 = ",gradiente(0.001, 100, c(0, 5)),"\n",
+    "  Valor = ",funcao(gradiente(0.001, 100, c(0, 5))),"\n",
+    
+    "Ponto de gradiente com taxa de aprendizado 0.0001 = ",gradiente(0.0001, 100, c(0, 5)),"\n",
+    "  Valor = ",funcao(gradiente(0.0001, 100, c(0, 5))))
+```
+
+Com $\epsilon = 1$ e $\epsilon = 0.1$ os valores divergem.
+
+Com $\epsilon = 0.01$ foi possivel chegar no "Mínimo Local 3", como foi visto na questão anterior, já com $\epsilon = 0.001$ os valores demonstram que o gradiente irá converger para o "Mínimo Local 3".
+
+Com $\epsilon = 0.0001$ o gradiente não chegou a nenhum ponto de mínimo, por conta dos passos serem muito "curtos" e em pouca quantidade (100).
+
+Portanto, **para esse caso com número de passos igual a 100 e com o ponto de início sendo $(x_1 = 0, x_2 = 5)$**, a melhor taxa de aprendizagem $\epsilon$ é $0.01$, por ter convergido e dado o melhor ponto entre as opções.
+
+# **Letra F**
+
+**f)** Fixe a semente do gerador de números aleatórios no valor 123 (se estiver usando o $R$, basta executar o código *set.seed(123)*). Repita novamente o item d), agora partindo de 20 pontos escolhidos aleatoriamente(uniformimente) no quadrado $−5 < x1, x2 < 5$.  Refaça o gráfico do item a) e adicione uma linha representando o caminho percorrido por cada uma das 20 otimizações. Qual foi o percentual de vezesem que o algoritmo encontrou o mínimo global da função (desprezando um eventual desvio de menor importância)?
+
+```{r 1f, error=FALSE,cache=TRUE, eval=FALSE}
+  # Semente
+set.seed(123)
+  
+  # Valores utilizados na questao d
+num_passos = 100
+tx_aprendizado = 0.01
+
+  # Pontos de inicio aleatorios
+n_pontos = 20
+x1_aleatorio <- runif(n = n_pontos,-5,5)
+x2_aleatorio <- runif(n = n_pontos,-5,5)
+
+  # Criar o banco de dados a ser preenchido
+col_x1 <- c()
+col_x2 <- c()
+col_passos <- c()
+for(i in 1:20){
+  col_x1 <- append(col_x1,rep(x1_aleatorio[i],100))
+  col_x2 <- append(col_x2,rep(x2_aleatorio[i],100))
+}
+
+base <- data.frame(matrix(NA,   
+                          nrow = n_pontos*num_passos,
+                          ncol = 6)) %>%
+  dplyr::rename(x1_inicial = X1,
+                x2_inicial = X2,
+                passo = X3,
+                x1_passo = X4,
+                x2_passo = X5,
+                gradiente = X6)
+
+base$x1_inicial <- col_x1
+base$x2_inicial <- col_x2
+base$passo <- rep(1:num_passos,n_pontos)
+  
+  # Loop para capturar os pontos 
+for(i in 1:(n_pontos*num_passos)){
+    pontos <- gradiente(tx_aprendizado,base$passo[i],c(base$x1_inicial[i],base$x2_inicial[i]))
+    base$x1_passo[i] <- pontos[1]
+    base$x2_passo[i] <- pontos[2]
+    base$gradiente[i] <- funcao(pontos)
+}
+```
+
+# **Letra G**
+
+**g)** Repita o item d), substituindo o método do gradiente pelo método do gradiente com momento (veja a Seção 8.3.2 do livro *Deep Learning*). Use taxa de aprendizado  $\epsilon = 0.01$, parâmetro de momento $\alpha = 0.9$ e velocidade inicial $v = 0$.
+
+```{r 1g, error=FALSE,cache=TRUE}
+
+```
+
+# **Letra H**
+
+**h)** Repita o item d), substituindo o método do gradiente pelo método RMSProp (veja a Seção 8.5.2do livro *Deep Learning*). Use taxa de aprendizado $\epsilon = 0.001$, taxa de decaimento $\rho = 0.9$ e constante $\delta = 10^{−6}$.
+
+```{r 1h, error=FALSE,cache=TRUE}
+
+```
+
+# **Letra I**
+
+**i)** Repita o item d), substituindo o método do gradiente pelo método ADAM (veja a Seção 8.5.3 do livro *Deep Learning*). Use taxa de aprendizado $\epsilon = 0.001$ e taxas de decaimento $\rho_1 = 0.9$ e $\rho_2 = 0.999$.
+
+
+```{r 1i, error=FALSE,cache=TRUE}
+
+```
+
+# **Letra J**
+
+**j)** Apresente graficamente, em uma única figura, os caminhos percorridos pelas otimizações executadas nos itens d), g), h) e i).
+
+```{r 1j, error=FALSE,cache=TRUE}
+
+```
+
