@@ -271,7 +271,45 @@ cat("Percentual de vezes em que o algoritmo encontrou o mínimo global da funç�
 **g)** Repita o item d), substituindo o método do gradiente pelo método do gradiente com momento (veja a Seção 8.3.2 do livro *Deep Learning*). Use taxa de aprendizado  $\epsilon = 0.01$, parâmetro de momento $\alpha = 0.9$ e velocidade inicial $v = 0$.
 
 ```{r 1g, error=FALSE,cache=TRUE}
+gradiente_com_momento <- function(learning_rate, momentum, num_passos, ponto_inicial, velocidade_inicial) {
+  # Definir função objetivo
+  f <- function(x) {
+    x1 <- x[1]
+    x2 <- x[2]
+    return(x1^4 + x2^4 + x1^2 * x2 + x1 * x2^2 - 20 * x1^2 - 15 * x2^2)
+  }
+  
+  # Definir vetor gradiente
+  grad_f <- function(x) {
+    x1 <- x[1]
+    x2 <- x[2]
+    return(c(4 * x1^3 + x2^2 + 2 * x1 * x2 - 40 * x1, 4 * x2^3 + x1^2 + 2 * x1 * x2 - 30 * x2))
+  }
+  
+  # Inicializar ponto atual e velocidade
+  ponto_atual <- ponto_inicial
+  velocidade <- velocidade_inicial
+  
+  # Loop do gradiente descendente com momento
+  for (i in 1:num_passos) {
+    # Calcular o vetor gradiente no ponto atual
+    grad <- grad_f(ponto_atual)
+    
+    # Atualizar a velocidade usando o gradiente, o parâmetro de momento e a taxa de aprendizado
+    velocidade <- momentum * velocidade - learning_rate * grad
+    
+    # Atualizar o ponto atual usando a velocidade
+    ponto_atual <- ponto_atual + velocidade
+  }
+  
+  return(ponto_atual)
+}
 
+velocidade_inicial = c(0,0)
+alfa = 0.9
+# Executar o método do gradiente com momento
+cat("Ponto de gradiente com momento = ", gradiente_com_momento(0.01, alfa, 100, c(0, 5), velocidade_inicial), "\n",
+    "Valor = ", funcao(gradiente_com_momento(0.01, alfa, 100, c(0, 5), velocidade_inicial)))
 ```
 
 # **Letra H**
@@ -279,7 +317,47 @@ cat("Percentual de vezes em que o algoritmo encontrou o mínimo global da funç�
 **h)** Repita o item d), substituindo o método do gradiente pelo método RMSProp (veja a Seção 8.5.2 do livro *Deep Learning*). Use taxa de aprendizado $\epsilon = 0.001$, taxa de decaimento $\rho = 0.9$ e constante $\delta = 10^{−6}$.
 
 ```{r 1h, error=FALSE,cache=TRUE}
+rmsprop <- function(learning_rate, decay_rate, delta, num_passos, ponto_inicial) {
+  # Definir função objetivo
+  f <- function(x) {
+    x1 <- x[1]
+    x2 <- x[2]
+    return(x1^4 + x2^4 + x1^2 * x2 + x1 * x2^2 - 20 * x1^2 - 15 * x2^2)
+  }
+  
+  # Definir vetor gradiente
+  grad_f <- function(x) {
+    x1 <- x[1]
+    x2 <- x[2]
+    return(c(4 * x1^3 + x2^2 + 2 * x1 * x2 - 40 * x1, 4 * x2^3 + x1^2 + 2 * x1 * x2 - 30 * x2))
+  }
+  
+  # Inicializar ponto atual e variável de acumulação de gradiente
+  ponto_atual <- ponto_inicial
+  r <- c(0, 0)
+  
+  # Loop do RMSProp
+  for (i in 1:num_passos) {
+    # Calcular o vetor gradiente no ponto atual
+    grad <- grad_f(ponto_atual)
+    
+    # Atualizar a variável de acumulação de gradiente
+    r <- decay_rate * r + (1 - decay_rate) * grad^2
+    
+    # Calcular a atualização dos parâmetros
+    delta_theta <- -(learning_rate / (sqrt(delta + r))) * grad
+    
+    # Atualizar os parâmetros
+    ponto_atual <- ponto_atual + delta_theta
+  }
+  
+  return(ponto_atual)
+}
 
+
+# Executar o método RMSProp
+cat("Ponto RMSProp = ", rmsprop(0.001, 0.9, 10^-6, 100, c(0, 5)), "\n",
+    "Valor = ", funcao(rmsprop(0.001, 0.9, 10^-6, 100, c(0, 5))))
 ```
 
 # **Letra I**
@@ -289,6 +367,7 @@ cat("Percentual de vezes em que o algoritmo encontrou o mínimo global da funç�
 
 ```{r 1i, error=FALSE,cache=TRUE}
 
+
 ```
 
 # **Letra J**
@@ -296,6 +375,11 @@ cat("Percentual de vezes em que o algoritmo encontrou o mínimo global da funç�
 **j)** Apresente graficamente, em uma única figura, os caminhos percorridos pelas otimizações executadas nos itens d), g), h) e i).
 
 ```{r 1j, error=FALSE,cache=TRUE}
+ggplot(data = base, aes(x = x1_passo, y = x2_passo, colour = `Ponto Inicial`)) +
+  geom_line() +
+  geom_point() -> p2
 
+p2 + 
+  transition_reveal(passo) +
+  labs(title = "Passo: {frame_along}") 
 ```
-
